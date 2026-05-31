@@ -17,9 +17,19 @@ SaturateAudioProcessor::SaturateAudioProcessor()
                         // We take a stereo input ("Input", 2 channels), enabled by default.
                         .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                         // We produce a stereo output ("Output", 2 channels), enabled.
-                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      // Build the APVTS. Arguments:
+      //   *this        -> the processor that owns these parameters
+      //   nullptr      -> no separate UndoManager (we don't need undo)
+      //   "PARAMETERS" -> the name of the root state node (used when saving/loading)
+      //   createParameterLayout() -> the parameter list we declared above
+      apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    // Body is empty for now — nothing to set up until we add parameters/DSP.
+    // Cache the lock-free pointer to the Drive value ONCE here, while we're on the
+    // safe (non-audio) thread. getRawParameterValue does a string lookup internally,
+    // which we never want to do inside processBlock — so we do it exactly once.
+    // The ID "drive" must match the one we give the parameter in createParameterLayout.
+    driveParameter = apvts.getRawParameterValue ("drive");
 }
 
 // Destructor. Empty: we allocated nothing that needs manual cleanup.
@@ -28,15 +38,57 @@ SaturateAudioProcessor::~SaturateAudioProcessor()
 }
 
 //==============================================================================
+// Build the list of parameters the plugin exposes. Called once, from the
+// constructor's initialiser list, to construct the apvts. Returns a
+// ParameterLayout — essentially a container we add parameter objects into.
+juce::AudioProcessorValueTreeState::ParameterLayout
+    SaturateAudioProcessor::createParameterLayout()
+{
+    // The (initially empty) layout we'll fill and return.
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    // Add ONE parameter: Drive. We std::make_unique it because the layout takes
+    // ownership of a heap-allocated parameter object.
+    layout.add (std::make_unique<juce::AudioParameterFloat>(
+        // The unique ID used in code/automation. The "1" is a VERSION HINT: if we
+        // ever change this parameter's meaning later, bumping the hint tells hosts
+        // the automation may differ. Must match the ID we cache in the constructor.
+        juce::ParameterID { "drive", 1 },
+
+        // The human-readable name shown in the DAW.
+        "Drive",
+
+        // The value range: from 1.0 (no extra drive) up to 25.0 (hard drive).
+        // NormalisableRange maps that real range to/from the host's internal 0..1.
+        // Linear for now; we can add a skew later to give the low end more resolution.
+        juce::NormalisableRange<float> (1.0f, 25.0f),
+
+        // The default value when the plugin first loads: 1.0 = unity, no change.
+        1.0f));
+
+    // Hand the finished layout back to the apvts constructor.
+    return layout;
+}
+
+//==============================================================================
 // Called before playback. The host tells us the sample rate (e.g. 48000 Hz) and
 // the max block size (samples per processBlock call). We'll use these later to
 // prepare the saturator. For now we deliberately ignore them.
 void SaturateAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // juce::ignoreUnused stops the compiler warning "unused parameter" without us
-    // having to delete the parameter names (we want them visible for when we DO
-    // use them). Purely cosmetic; generates no code.
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    // We don't need the block size for this parameter; silence its unused warning.
+    juce::ignoreUnused (samplesPerBlock);
+
+    // Tell the smoother HOW LONG its ramp should take. reset() takes the sample rate
+    // and a ramp length in SECONDS; 0.05 = a 50 ms glide. It uses the sample rate to
+    // work out how many per-sample steps that is. Re-running here is correct because
+    // the host can change the sample rate, and the ramp length must track it.
+    driveSmoothed.reset (sampleRate, 0.05);
+
+    // Snap the smoother straight to the current knob value (no ramp on the very first
+    // block) so playback doesn't glide up from zero when audio starts. We read the
+    // cached atomic pointer; load() gets its current float value.
+    driveSmoothed.setCurrentAndTargetValue (driveParameter->load());
 }
 
 // Called when playback stops. Nothing to release yet.
@@ -70,10 +122,27 @@ void SaturateAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // PASSTHROUGH: we intentionally do NOT touch the audio samples. The buffer
-    // already holds the input, and since we leave it unchanged, the host reads the
-    // same samples back as our output. The saturator DSP will replace this comment
-    // block in Phase 2.
+    // How many samples are in this block.
+    const auto numSamples = buffer.getNumSamples();
+
+    // Point the smoother at wherever the Drive knob is RIGHT NOW. If the value moved
+    // since last block, the smoother will glide toward it over its 50 ms ramp rather
+    // than jumping. One atomic load — cheap and lock-free, safe on the audio thread.
+    driveSmoothed.setTargetValue (driveParameter->load());
+
+    // Walk the block one sample at a time (outer loop) so the smoother advances once
+    // per sample and the SAME gain is applied to every channel at that instant.
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        // getNextValue() returns this sample's gain and advances the ramp by one step.
+        const float gain = driveSmoothed.getNextValue();
+
+        // Apply that gain to each channel's sample, in place. For now Drive is just a
+        // linear volume multiply — this proves the parameter reaches the audio thread.
+        // Issue #2 replaces this multiply with the tanh saturation curve.
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
+            buffer.getWritePointer (channel)[sample] *= gain;
+    }
 }
 
 //==============================================================================
@@ -130,12 +199,23 @@ void SaturateAudioProcessor::changeProgramName (int index, const juce::String& n
 // --- State save/load: empty for now (no parameters). APVTS fills these later. ---
 void SaturateAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    juce::ignoreUnused (destData);
+    // Take a snapshot of the apvts's whole state (a ValueTree) and convert it to XML.
+    // copyState() is thread-safe. createXml() may return nullptr, so we guard with if.
+    if (auto xml = apvts.copyState().createXml())
+        // Serialize that XML into the host's memory block. The DAW saves this with the
+        // project, so reopening it restores every parameter exactly as it was.
+        copyXmlToBinary (*xml, destData);
 }
 
 void SaturateAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    juce::ignoreUnused (data, sizeInBytes);
+    // Turn the saved binary blob back into XML. Guard against null (corrupt/empty data).
+    if (auto xml = getXmlFromBinary (data, sizeInBytes))
+        // Only load it if it's actually OUR state tree (tag matches), so we don't try
+        // to apply some other plugin's data.
+        if (xml->hasTagName (apvts.state.getType()))
+            // Replace the live parameter state with the loaded one — restoring the knobs.
+            apvts.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
 //==============================================================================
