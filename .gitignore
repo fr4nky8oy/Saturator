@@ -23,6 +23,9 @@
 Saturate/build/
 build/
 
+# clangd's local index cache (generated from compile_commands.json by the editor).
+.cache/
+
 # ---------------------------------------------------------------------------
 # 2. Local-only planning docs  (kept out of the public repo)
 # ---------------------------------------------------------------------------
@@ -54,3 +57,10 @@ build/
 .idea/
 *.swp
 *~
+
+# ---------------------------------------------------------------------------
+# 5. Local tool config
+# ---------------------------------------------------------------------------
+# Per-developer local Claude Code settings (personal hooks/overrides for this
+# machine). Stays local — it's not part of the shippable project.
+.claude/settings.local.json
