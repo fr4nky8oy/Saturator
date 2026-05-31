@@ -111,10 +111,27 @@ void SaturateAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // from wherever it currently is toward this target over the 50 ms ramp.
     driveSmoothed.setTargetValue (drive);
 
-    // Apply the smoothed gain across the whole block. This JUCE helper walks sample by
-    // sample, advancing the glide one step per sample, and multiplies every channel by
-    // that per-sample value — so a knob move ramps smoothly instead of clicking.
-    driveSmoothed.applyGain (buffer, buffer.getNumSamples());
+    // We now touch each sample ourselves (the tanh curve, next step, can't use the
+    // applyGain helper). Grab the block's dimensions:
+    const int numSamples  = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+
+    // Walk the block one SAMPLE at a time (outer loop). Pull the smoothed Drive once
+    // per sample here, so both channels share the same value at that instant and the
+    // smoother advances exactly once per sample.
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        const float d = driveSmoothed.getNextValue();
+
+        // Inner loop: shape each channel's sample, in place. "d * channelData[sample]"
+        // is Drive pushing the signal INTO the curve; std::tanh then rounds the peaks.
+        // This is the tanh(drive × input) saturation from the README.
+        for (int channel = 0; channel < numChannels; ++channel)
+        {
+            float* channelData = buffer.getWritePointer (channel);
+            channelData[sample] = std::tanh (d * channelData[sample]);
+        }
+    }
 }
 
 //==============================================================================
