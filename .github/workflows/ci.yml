@@ -1,0 +1,89 @@
+# .github/workflows/ci.yml
+#
+# This is a GitHub Actions "workflow": a script GitHub runs FOR us, on GitHub's
+# own machines, whenever the triggers below fire. Its single job is to prove the
+# plugin still compiles from a clean checkout. When `main` is protected, a PR
+# cannot be merged unless this workflow finishes green — that's the "CI gate".
+#
+# Why this matters: it catches "works on my machine" breakage. The runner has
+# NO ~/JUCE, no leftover build/, nothing — so if it builds here, it builds for
+# anyone who clones the repo fresh.
+
+# The name shown in the GitHub "Actions" tab and on the PR status check.
+name: CI
+
+# WHEN this workflow runs.
+on:
+  # On every pull request that targets main — this is the gate for incoming work.
+  pull_request:
+    branches: [main]
+  # And on direct pushes to main (e.g. after a merge) so main's own state is
+  # always known-good and gets a green/red badge.
+  push:
+    branches: [main]
+
+jobs:
+  # One job, called "build". A workflow can have many jobs; we need just this one.
+  build:
+    # The name shown for this job in the UI.
+    name: Build (macOS, all formats)
+
+    # WHICH machine to run on. macos-latest gives us an Apple-Silicon (arm64)
+    # runner with Xcode + CMake preinstalled — matching the local dev machine.
+    runs-on: macos-latest
+
+    steps:
+      # ---------------------------------------------------------------------
+      # Step 1: get our own code onto the runner.
+      # `actions/checkout` is GitHub's official "git clone this repo" action.
+      # ---------------------------------------------------------------------
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Step 2: get JUCE onto the runner.
+      # Our CMakeLists expects JUCE at a path. The runner has none, so we clone
+      # it ourselves into ./JUCE. We PIN the exact tag (8.0.12) that we build
+      # against locally, so CI never drifts onto a different JUCE version.
+      #   ref:    the exact tag to check out
+      #   path:   where to put it (relative to the workspace root)
+      #   depth 1 (shallow) + no submodules keeps the clone fast and small.
+      # ---------------------------------------------------------------------
+      - name: Check out JUCE 8.0.12
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.12
+          path: JUCE
+          fetch-depth: 1
+
+      # ---------------------------------------------------------------------
+      # Step 3: install Ninja, our build driver. CMake is already on the
+      # runner; Ninja is not, so we install it via Homebrew.
+      # ---------------------------------------------------------------------
+      - name: Install Ninja
+        run: brew install ninja
+
+      # ---------------------------------------------------------------------
+      # Step 4: configure the build (the cmake -B step).
+      #   -S Saturate            : our source dir (where its CMakeLists lives)
+      #   -B Saturate/build      : where to generate the build files
+      #   -G Ninja               : use the Ninja generator
+      #   -DCMAKE_BUILD_TYPE     : Release here — closest to what we'd ship, and
+      #                            it exercises the LTO/optimised path
+      #   -DJUCE_PATH=...        : point our CMakeLists at the JUCE we just cloned.
+      #                            github.workspace is the runner's repo root.
+      # ---------------------------------------------------------------------
+      - name: Configure (CMake)
+        run: >
+          cmake -B Saturate/build -S Saturate -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DJUCE_PATH=${{ github.workspace }}/JUCE
+
+      # ---------------------------------------------------------------------
+      # Step 5: the actual build. If anything fails to compile or link, this
+      # step exits non-zero, the job goes red, and the PR is blocked. That red
+      # X is the whole point of the gate.
+      # ---------------------------------------------------------------------
+      - name: Build (VST3 + AU + Standalone)
+        run: cmake --build Saturate/build
