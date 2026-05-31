@@ -92,7 +92,7 @@ target_compile_definitions(${PROJECT_NAME}
         # decide about VST2<->VST3 parameter-automation compatibility. We have no VST2
         # (the SDK is deprecated), so we set it to 0 to opt out and clear the error.
         JUCE_VST3_CAN_REPLACE_VST2=0
-        # Hide the JUCE splash screen (allowed because this is a learning/owned build).
+        # Hide the JUCE startup splash screen.
         JUCE_DISPLAY_SPLASH_SCREEN=0
         # Don't phone home with usage stats.
         JUCE_REPORT_APP_USAGE=0

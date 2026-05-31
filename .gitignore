@@ -24,7 +24,7 @@ Saturate/build/
 build/
 
 # ---------------------------------------------------------------------------
-# 2. Local-only planning docs  (kept out of the public/interview repo)
+# 2. Local-only planning docs  (kept out of the public repo)
 # ---------------------------------------------------------------------------
 # These two stay on disk locally but never get pushed:
 #   plan.md                              -> the full personal build plan
