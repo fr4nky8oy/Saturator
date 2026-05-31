@@ -87,38 +87,7 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    //==============================================================================
-    // --- Parameters (APVTS) ---
-
-    // A small factory that BUILDS the list of parameters this plugin owns and hands
-    // it back as a ParameterLayout. We keep it as a separate static function (rather
-    // than inlining it) so the constructor's initialiser list can call it cleanly to
-    // construct the apvts below. "static" = it belongs to the class, not to any one
-    // instance, so it can run before the object is fully built.
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-
-    // THE central parameter store. It owns our parameters, exposes them to the host
-    // for automation, gives the audio thread lock-free atomic access to their values,
-    // and handles saving/loading their state. It's PUBLIC so the editor (GUI) can
-    // attach sliders to it directly. The args are wired up in the .cpp constructor.
-    juce::AudioProcessorValueTreeState apvts;
-
 private:
-    //==============================================================================
-    // --- Cached audio-thread state for the Drive parameter ---
-
-    // A direct, lock-free pointer to the Drive parameter's current value. The APVTS
-    // hands this out via getRawParameterValue(); we cache it ONCE in the constructor
-    // so processBlock can read the knob with a single atomic load — no string lookup,
-    // no locking — which is exactly what the real-time audio thread needs.
-    std::atomic<float>* driveParameter { nullptr };
-
-    // Smooths the Drive value over a short ramp so moving the knob doesn't cause an
-    // instant jump in gain (which you'd hear as a click/"zipper"). The <Linear> type
-    // means it ramps in equal steps per sample. We configure its ramp in prepareToPlay
-    // and read one smoothed step per sample in processBlock.
-    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> driveSmoothed;
-
     //==============================================================================
     // This macro adds standard JUCE safety boilerplate to the class:
     //  - prevents accidental copying of the processor (which would be a bug), and
