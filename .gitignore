@@ -34,10 +34,12 @@ build/
 #   project_franky_doesit_template.md    -> a Claude memory node (has tooling
 #                                           frontmatter + session IDs in it)
 #   BlenderUI.md                         -> internal plan for the Blender-rendered UI
+#   memory.md                            -> session handoff / resume notes
 # The committed repo gets a clean README.md instead.
 /plan.md
 /project_franky_doesit_template.md
 /BlenderUI.md
+/memory.md
 
 # ---------------------------------------------------------------------------
 # 3. macOS filesystem junk
