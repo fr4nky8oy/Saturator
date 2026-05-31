@@ -29,13 +29,15 @@ build/
 # ---------------------------------------------------------------------------
 # 2. Local-only planning docs  (kept out of the public repo)
 # ---------------------------------------------------------------------------
-# These two stay on disk locally but never get pushed:
+# These stay on disk locally but never get pushed:
 #   plan.md                              -> the full personal build plan
 #   project_franky_doesit_template.md    -> a Claude memory node (has tooling
 #                                           frontmatter + session IDs in it)
+#   BlenderUI.md                         -> internal plan for the Blender-rendered UI
 # The committed repo gets a clean README.md instead.
 /plan.md
 /project_franky_doesit_template.md
+/BlenderUI.md
 
 # ---------------------------------------------------------------------------
 # 3. macOS filesystem junk
