@@ -4,10 +4,9 @@ A from-scratch audio **saturator / drive** plugin, built in C++ with the
 [JUCE](https://juce.com) framework and compiled to **VST3**, **Audio Unit (AU)**,
 and **Standalone** formats.
 
-This repository is built deliberately, one reviewable increment at a time, to
-practise a professional software workflow end-to-end: every change flows through
-an issue, a feature branch, a pull request, a green CI build, and a review before
-it reaches a protected `main`.
+Development is structured as a series of reviewable increments. Every change
+flows through an issue, a feature branch, a pull request, and a green CI build,
+and is reviewed before it reaches a protected `main`.
 
 ---
 
@@ -16,8 +15,8 @@ it reaches a protected `main`.
 | Phase | What | State |
 |-------|------|-------|
 | 0 | Green plugin skeleton — passthrough audio, empty window, builds in all 3 formats | ✅ done |
-| 1 | Git workflow + CI build gate + protected `main` | 🔨 in progress |
-| 2 | Saturator DSP (hand-written, one PR per increment) | ⬜ next |
+| 1 | Git workflow + CI build gate + protected `main` | ✅ done |
+| 2 | Saturator DSP — one PR per increment | 🔨 in progress |
 | 2.5 | `new-plugin.sh` scaffold generator | ⬜ |
 | 4 | Unsigned `.dmg` / `.pkg` installer | ⬜ |
 | 5a | Serial-number licensing (JUCE `juce_product_unlocking`) | ⬜ |
@@ -70,8 +69,8 @@ On a successful build the plugin is copied into your user plugin folders
 └── README.md
 ```
 
-The source is written by hand and heavily commented, as a learning exercise —
-the intent is to understand every line, not to generate boilerplate.
+The source is thoroughly commented, documenting the rationale behind each
+component inline.
 
 ---
 
@@ -85,8 +84,8 @@ the intent is to understand every line, not to generate boilerplate.
 4. a **green CI build** (configures + compiles the plugin on a clean macOS runner),
 5. a **review**, then **merge**.
 
-This mirrors a team git process — branch protection, required status checks, and
-PR review — on a solo project, so the repository itself documents the practice.
+Branch protection, required status checks, and mandatory PR review are enforced
+on `main`.
 
 ---
 
