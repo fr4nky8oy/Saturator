@@ -21,8 +21,36 @@ and is reviewed before it reaches a protected `main`.
 | 4 | Unsigned `.dmg` / `.pkg` installer | ⬜ |
 | 5a | Serial-number licensing (JUCE `juce_product_unlocking`) | ⬜ |
 
-The skeleton currently passes audio through unchanged and shows an empty
-400×300 window — a verified-green baseline to build the DSP on top of.
+The plugin currently provides a **Drive** control (the saturation described
+below) with a rotary knob in the editor. Further parameters and DSP land per the
+roadmap above.
+
+---
+
+## Signal processing
+
+The Drive stage is a **waveshaping saturator**. Each sample is shaped by the
+hyperbolic tangent function:
+
+```
+output = tanh(drive × input)
+```
+
+`tanh` is a smooth, S-shaped soft-clipping curve: near-linear for low-level
+signals (clean), and progressively flattening toward ±1 as level rises, so peaks
+are rounded rather than hard-clipped. **Drive** scales the signal into the curve —
+higher Drive pushes it onto the flatter shoulders, generating more harmonics and
+more saturation. Drive is parameter-smoothed (50 ms, linear) to avoid zipper
+noise; an output makeup-gain stage is planned.
+
+**Analog correspondence.** A symmetric `tanh` is the transfer function of a
+bipolar-transistor differential pair, so this models solid-state soft clipping
+directly. Its symmetry produces odd-order harmonics — similar in character to
+push-pull and transistor saturation, and to the static transfer curve of tape.
+It does **not** model single-ended valve warmth (even-order harmonics, which
+require an asymmetric curve), tape hysteresis or frequency-dependent behaviour,
+and it does not yet oversample to suppress aliasing. These are deliberate future
+refinements.
 
 ---
 
