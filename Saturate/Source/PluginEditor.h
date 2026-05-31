@@ -43,6 +43,17 @@ private:
     // real processor — never a copy.
     SaturateAudioProcessor& processorRef;
 
+    // The on-screen knob for the Drive parameter. juce::Slider is JUCE's component
+    // for a knob/fader. This just creates the object; we make it visible (4b),
+    // position it (4c), and connect it to the parameter (4d) next.
+    juce::Slider driveSlider;
+
+    // The connector that keeps driveSlider and the "drive" parameter in sync (both
+    // ways), automatically. Declared AFTER driveSlider so it's destroyed first when
+    // the window closes. Like apvts, it has no empty form — we build it in the
+    // constructor (next part), which clears the "must initialize" error.
+    juce::AudioProcessorValueTreeState::SliderAttachment driveAttachment;
+
     // Same safety macro as the processor: no accidental copies, plus a debug-build
     // leak detector.
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SaturateAudioProcessorEditor)
