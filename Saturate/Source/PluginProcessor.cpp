@@ -17,9 +17,16 @@ SaturateAudioProcessor::SaturateAudioProcessor()
                         // We take a stereo input ("Input", 2 channels), enabled by default.
                         .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                         // We produce a stereo output ("Output", 2 channels), enabled.
-                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      // ^ note the comma above — it chains on the next thing to initialize:
+      // Create the box and hand it our parameter list. The four arguments:
+      //   *this        -> the processor that owns these parameters
+      //   nullptr      -> no undo system (we don't need one)
+      //   "PARAMETERS" -> a name tag for the saved data
+      //   createParameterLayout() -> the list we built in Step 1
+      apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    // Body is empty for now — nothing to set up until we add parameters/DSP.
+    // Nothing else to set up here yet.
 }
 
 // Destructor. Empty: we allocated nothing that needs manual cleanup.
@@ -28,15 +35,41 @@ SaturateAudioProcessor::~SaturateAudioProcessor()
 }
 
 //==============================================================================
+// Builds and returns the list of parameters. Right now nothing calls this yet —
+// we're just defining the Drive knob here. Step 3 will use it.
+juce::AudioProcessorValueTreeState::ParameterLayout
+    SaturateAudioProcessor::createParameterLayout()
+{
+    // Start with an empty list that we'll add our parameter(s) to.
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    // Create the Drive parameter and put it in the list. The four pieces are:
+    layout.add (std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID { "drive", 1 },             // internal ID: "drive"
+        "Drive",                                       // label the user sees
+        juce::NormalisableRange<float> (1.0f, 25.0f),  // range: 1.0 up to 25.0
+        1.0f));                                        // default: 1.0 (no effect)
+
+    // Hand the finished list back to whoever asked for it.
+    return layout;
+}
+
+//==============================================================================
 // Called before playback. The host tells us the sample rate (e.g. 48000 Hz) and
 // the max block size (samples per processBlock call). We'll use these later to
 // prepare the saturator. For now we deliberately ignore them.
 void SaturateAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // juce::ignoreUnused stops the compiler warning "unused parameter" without us
-    // having to delete the parameter names (we want them visible for when we DO
-    // use them). Purely cosmetic; generates no code.
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    // We don't need the block size here; silence just that one unused warning.
+    juce::ignoreUnused (samplesPerBlock);
+
+    // Tell the smoother how long its glide should take: 0.05 seconds = 50 ms. It needs
+    // the sampleRate to turn "50 ms" into a number of per-sample steps.
+    driveSmoothed.reset (sampleRate, 0.05);
+
+    // Start the smoother sitting exactly on the current knob value, so audio doesn't
+    // glide up from zero when playback begins. (setCurrentAndTargetValue = snap, no ramp.)
+    driveSmoothed.setCurrentAndTargetValue (apvts.getRawParameterValue ("drive")->load());
 }
 
 // Called when playback stops. Nothing to release yet.
@@ -70,10 +103,18 @@ void SaturateAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // PASSTHROUGH: we intentionally do NOT touch the audio samples. The buffer
-    // already holds the input, and since we leave it unchanged, the host reads the
-    // same samples back as our output. The saturator DSP will replace this comment
-    // block in Phase 2.
+    // Read the current Drive value out of the box. getRawParameterValue gives us a
+    // pointer to the live value; load() reads the number. Once per block is plenty.
+    const float drive = apvts.getRawParameterValue ("drive")->load();
+
+    // Aim the smoother at the current knob value. Instead of jumping, it will GLIDE
+    // from wherever it currently is toward this target over the 50 ms ramp.
+    driveSmoothed.setTargetValue (drive);
+
+    // Apply the smoothed gain across the whole block. This JUCE helper walks sample by
+    // sample, advancing the glide one step per sample, and multiplies every channel by
+    // that per-sample value — so a knob move ramps smoothly instead of clicking.
+    driveSmoothed.applyGain (buffer, buffer.getNumSamples());
 }
 
 //==============================================================================

@@ -11,8 +11,24 @@
 // constructor with a reference to the processor. The ", processorRef (p)" part
 // stores that same reference into our member so we can use it later.
 SaturateAudioProcessorEditor::SaturateAudioProcessorEditor (SaturateAudioProcessor& p)
-    : AudioProcessorEditor (p), processorRef (p)
+    : AudioProcessorEditor (p), processorRef (p),
+      // Connect the knob to the parameter. The three things it needs to know:
+      //   processorRef.apvts -> WHICH box holds the parameter (reached via processorRef)
+      //   "drive"            -> WHICH parameter, by the ID we gave it in Step 1
+      //   driveSlider        -> WHICH on-screen knob to keep in sync
+      driveAttachment (processorRef.apvts, "drive", driveSlider)
 {
+    // Register the knob as a child of this window and make it show on screen.
+    addAndMakeVisible (driveSlider);
+
+    // Make it a ROUND knob you turn by dragging up/down or left/right
+    // (instead of JUCE's default straight horizontal fader).
+    driveSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+
+    // Put a small value readout BELOW the knob: not editable-as-readonly = false
+    // means you CAN type a value in too. The 70x20 is the readout box size in pixels.
+    driveSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 20);
+
     // Set the window's size in pixels (width, height). JUCE will call resized()
     // right after this. 400x300 is a comfortable placeholder; we'll revisit it
     // when the knobs need room.
@@ -37,9 +53,15 @@ void SaturateAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (juce::Colours::white);
     // Choose a 24-point font.
     g.setFont (24.0f);
-    // Draw "Saturate" centred within the whole window area. Justification::centred
-    // centres it both horizontally and vertically. The "1" is the max number of lines.
-    g.drawFittedText ("Saturate", getLocalBounds(), juce::Justification::centred, 1);
+    // Carve a strip off the TOP of the window for the title: full width, 50px tall.
+    // removeFromTop returns that top strip. (This is JUCE's standard layout idiom —
+    // you slice rectangles off the edges of a bigger rectangle.)
+    auto titleArea = getLocalBounds().removeFromTop (50);
+
+    // Draw "Saturate" centred WITHIN that top strip. Because the strip sits at the top
+    // of the window, the text lands high up — and "centred" still centres it left-to-
+    // right inside the full-width strip. Change the 50 above to nudge it lower/higher.
+    g.drawFittedText ("Saturate", titleArea, juce::Justification::centred, 1);
 }
 
 //==============================================================================
@@ -48,4 +70,8 @@ void SaturateAudioProcessorEditor::paint (juce::Graphics& g)
 // because we have no children to lay out yet.
 void SaturateAudioProcessorEditor::resized()
 {
+    // Place the knob: x=150 from the left, y=80 from the top, 100 wide, 120 tall.
+    // (Window is 400 wide, so x=150 centres a 100-wide knob. The extra height
+    // leaves room for the value readout under the dial.)
+    driveSlider.setBounds (150, 80, 100, 120);
 }

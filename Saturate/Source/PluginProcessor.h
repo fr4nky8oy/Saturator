@@ -87,7 +87,31 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    //==============================================================================
+    // The "box" that holds all our parameters (just Drive for now). It also lets the
+    // host automate them and handles saving/loading. It's PUBLIC on purpose: the
+    // editor (Step 4) needs to see it so its slider can attach to the Drive parameter.
+    juce::AudioProcessorValueTreeState apvts;
+
 private:
+    //==============================================================================
+    // --- Parameters ---
+
+    // Builds the list of parameters this plugin has (for now, just "Drive") and
+    // returns it. We'll call this in Step 3 when we create the parameter store.
+    // It's "static" because it needs to run while the object is still being built,
+    // before there's a finished object to belong to.
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    //==============================================================================
+    // --- Smoothing ---
+
+    // Glides the Drive gain from its old value to a new one over a short ramp, so
+    // moving the knob doesn't click. <Linear> = it walks in equal steps (a straight
+    // line) — i.e. linear interpolation between old and new. We set its ramp length
+    // in prepareToPlay (5b-2) and use it in processBlock (5b-3).
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> driveSmoothed;
+
     //==============================================================================
     // This macro adds standard JUCE safety boilerplate to the class:
     //  - prevents accidental copying of the processor (which would be a bug), and
