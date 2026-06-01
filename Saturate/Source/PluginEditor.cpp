@@ -27,6 +27,12 @@ SaturateAudioProcessorEditor::SaturateAudioProcessorEditor (SaturateAudioProcess
     backgroundImage = juce::ImageCache::getFromMemory (BinaryData::background_png,
                                                        BinaryData::background_pngSize);
 
+    // Load the VT323 font from the embedded bytes, and start the 30 Hz refresh so the
+    // live value numbers keep up with the knobs (and host automation).
+    numberTypeface = juce::Typeface::createSystemTypefaceFor (BinaryData::VT323Regular_ttf,
+                                                              BinaryData::VT323Regular_ttfSize);
+    startTimerHz (30);
+
     // --- Drive knob ---
     // Register it as a child of this window and make it show on screen.
     addAndMakeVisible (driveSlider);
@@ -68,12 +74,44 @@ void SaturateAudioProcessorEditor::paint (juce::Graphics& g)
     // window's rectangle; .toFloat() because drawImage wants float coordinates.
     // (No grey fill or title text needed — the artwork already has them baked in.)
     g.drawImage (backgroundImage, getLocalBounds().toFloat());
+
+    // --- live value numbers (VT323, amber) drawn into the empty baked boxes ---
+    const float w = (float) getWidth();
+    const float h = (float) getHeight();
+    g.setColour (juce::Colour (0xfff0d8c0));                  // warm cream, matching baked labels
+    g.setFont (juce::Font (juce::FontOptions (numberTypeface).withHeight (h * 0.032f)));
+
+    // read the current parameter values straight from the processor
+    const float drive  = processorRef.apvts.getRawParameterValue ("drive")->load();
+    const float output = processorRef.apvts.getRawParameterValue ("output")->load();
+
+    // box size to draw the text in (a bit wider than the baked number, for headroom)
+    const int bw = juce::roundToInt (0.10f * w);
+    const int bh = juce::roundToInt (0.05f * h);
+
+    // Drive number box (centre 0.3896, 0.6396)
+    // Show Drive normalized 0.00..1.00 for the user; the engine value stays 1..25.
+    g.drawText (juce::String ((drive - 1.0f) / 24.0f, 2),
+                juce::roundToInt (0.3896f * w - bw * 0.5f),
+                juce::roundToInt (0.6396f * h - bh * 0.5f), bw, bh,
+                juce::Justification::centred);
+
+    // Output number box (centre 0.6106, 0.6396)
+    g.drawText (juce::String (output, 1),
+                juce::roundToInt (0.6106f * w - bw * 0.5f),
+                juce::roundToInt (0.6396f * h - bh * 0.5f), bw, bh,
+                juce::Justification::centred);
 }
 
 //==============================================================================
 // resized(): called whenever the window changes size (and once at startup). This
 // is where we'll position child components (the knobs) in Phase 2. Empty for now
 // because we have no children to lay out yet.
+void SaturateAudioProcessorEditor::timerCallback()
+{
+    repaint();   // redraw so the value numbers track the current knob / host automation
+}
+
 void SaturateAudioProcessorEditor::resized()
 {
     // Window dimensions right now (square: 600x600, but we read them so it stays
