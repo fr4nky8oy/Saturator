@@ -15,8 +15,9 @@
 class KnobLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    // Constructor: loads the filmstrip image once (defined in the .cpp).
-    KnobLookAndFeel();
+    // Constructor takes the filmstrip's raw bytes (from BinaryData) so each knob can
+    // use its OWN strip. dataSize is the byte count that goes with imageData.
+    KnobLookAndFeel (const void* imageData, int dataSize);
 
     // The one function we override. JUCE calls this to paint a rotary slider. We get
     // the canvas (g), the knob's rectangle (x,y,width,height), and its position as a

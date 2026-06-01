@@ -4,16 +4,14 @@
 
 // Our own header (the class shape).
 #include "KnobLookAndFeel.h"
-// The generated header holding our embedded assets (BinaryData::knob_filmstrip_png).
-#include "BinaryData.h"
 
 //==============================================================================
-// Constructor: decode the embedded filmstrip PNG into our Image, once. ImageCache
-// keeps a single shared decoded copy, so this is cheap.
-KnobLookAndFeel::KnobLookAndFeel()
+// Constructor: decode the GIVEN filmstrip bytes into our Image, once. ImageCache
+// keeps a single shared decoded copy, so this is cheap. The caller (the editor)
+// passes which strip to use, so this class stays reusable for any knob.
+KnobLookAndFeel::KnobLookAndFeel (const void* imageData, int dataSize)
 {
-    filmstrip = juce::ImageCache::getFromMemory (BinaryData::knob_filmstrip_png,
-                                                 BinaryData::knob_filmstrip_pngSize);
+    filmstrip = juce::ImageCache::getFromMemory (imageData, dataSize);
 }
 
 //==============================================================================

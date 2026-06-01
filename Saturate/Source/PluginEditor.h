@@ -49,10 +49,10 @@ private:
     // so we load it a single time (in the constructor) rather than every repaint.
     juce::Image backgroundImage;
 
-    // Our custom filmstrip look. Declared BEFORE the sliders so it is destroyed AFTER
-    // them (members die in reverse order) — the slider must never reference a look that
-    // is already gone.
-    KnobLookAndFeel knobLookAndFeel;
+    // One custom look PER knob, each loaded with its own strip (knob_L for Drive,
+    // knob_R for Output). Declared BEFORE the sliders so they're destroyed AFTER them.
+    KnobLookAndFeel driveLook;
+    KnobLookAndFeel outputLook;
 
     // The on-screen knob for the Drive parameter. juce::Slider is JUCE's component
     // for a knob/fader. This just creates the object; we make it visible (4b),
@@ -64,6 +64,14 @@ private:
     // the window closes. Like apvts, it has no empty form — we build it in the
     // constructor (next part), which clears the "must initialize" error.
     juce::AudioProcessorValueTreeState::SliderAttachment driveAttachment;
+
+    // The on-screen knob for the Output parameter — twin of driveSlider, same
+    // filmstrip look. Created here; configured, placed and attached like Drive.
+    juce::Slider outputSlider;
+
+    // Keeps outputSlider and the "output" parameter in sync both ways, automatically.
+    // Declared after outputSlider so it is destroyed first (reverse member order).
+    juce::AudioProcessorValueTreeState::SliderAttachment outputAttachment;
 
     // Same safety macro as the processor: no accidental copies, plus a debug-build
     // leak detector.
