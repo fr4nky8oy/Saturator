@@ -69,6 +69,9 @@ Saturate/Pictures/
 # Not part of the shippable plugin — stays local.
 /Blender/
 
+# Local DSP measurement/derivation scripts (e.g. the link-compensation curve tool).
+/Saturate/tools/
+
 # Local DAW test project used to audition the plugin — not part of the product.
 /TestAbleton/
 

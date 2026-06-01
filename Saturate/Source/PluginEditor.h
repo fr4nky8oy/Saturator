@@ -40,6 +40,9 @@ public:
     // Fires ~30x/sec; we use it to refresh the live value numbers in their boxes.
     void timerCallback() override;
 
+    // Detects clicks on the Link button (drawn in paint) and toggles the link parameter.
+    void mouseDown (const juce::MouseEvent& e) override;
+
 private:
     //==============================================================================
     // A reference back to the processor this editor belongs to. We store it so the
@@ -55,6 +58,12 @@ private:
 
     // The VT323 retro font (loaded from BinaryData) used to draw the live value numbers.
     juce::Typeface::Ptr numberTypeface;
+
+    // The Link toggle images (lit / unlit), drawn in paint() depending on link state.
+    juce::Image buttonOn, buttonOff;
+
+    // The Link button's on-screen rectangle (used by paint() to draw and mouseDown to hit-test).
+    juce::Rectangle<int> linkButtonArea() const;
 
     // One custom look PER knob, each loaded with its own strip (knob_L for Drive,
     // knob_R for Output). Declared BEFORE the sliders so they're destroyed AFTER them.

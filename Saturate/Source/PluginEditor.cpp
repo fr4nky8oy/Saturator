@@ -33,6 +33,10 @@ SaturateAudioProcessorEditor::SaturateAudioProcessorEditor (SaturateAudioProcess
                                                               BinaryData::VT323Regular_ttfSize);
     startTimerHz (30);
 
+    // Decode the Link toggle images (lit / unlit) once, ready to draw in paint().
+    buttonOn  = juce::ImageCache::getFromMemory (BinaryData::button_on_png,  BinaryData::button_on_pngSize);
+    buttonOff = juce::ImageCache::getFromMemory (BinaryData::button_off_png, BinaryData::button_off_pngSize);
+
     // --- Drive knob ---
     // Register it as a child of this window and make it show on screen.
     addAndMakeVisible (driveSlider);
@@ -101,6 +105,10 @@ void SaturateAudioProcessorEditor::paint (juce::Graphics& g)
                 juce::roundToInt (0.6106f * w - bw * 0.5f),
                 juce::roundToInt (0.6396f * h - bh * 0.5f), bw, bh,
                 juce::Justification::centred);
+
+    // Link button: lit image when link is on, unlit when off (drawn over the baked socket).
+    const bool linkOn = processorRef.apvts.getRawParameterValue ("link")->load() > 0.5f;
+    g.drawImage (linkOn ? buttonOn : buttonOff, linkButtonArea().toFloat());
 }
 
 //==============================================================================
@@ -110,6 +118,26 @@ void SaturateAudioProcessorEditor::paint (juce::Graphics& g)
 void SaturateAudioProcessorEditor::timerCallback()
 {
     repaint();   // redraw so the value numbers track the current knob / host automation
+}
+
+// The Link button's on-screen rectangle, from the Blender coords (centre 0.5, 0.5086;
+// square side 0.0766). Computed from the live window size so it scales with the window.
+juce::Rectangle<int> SaturateAudioProcessorEditor::linkButtonArea() const
+{
+    const float w = (float) getWidth(), h = (float) getHeight();
+    return { juce::roundToInt (0.4617f * w), juce::roundToInt (0.4703f * h),   // top-left
+             juce::roundToInt (0.0766f * w), juce::roundToInt (0.0766f * h) }; // square size
+}
+
+void SaturateAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
+{
+    // A click inside the Link button flips the link parameter on/off.
+    if (linkButtonArea().contains (e.getPosition()))
+    {
+        auto* p = processorRef.apvts.getParameter ("link");
+        const bool on = p->getValue() > 0.5f;        // current state (normalized 0/1)
+        p->setValueNotifyingHost (on ? 0.0f : 1.0f); // flip it
+    }
 }
 
 void SaturateAudioProcessorEditor::resized()
