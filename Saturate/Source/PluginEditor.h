@@ -12,6 +12,7 @@
 // We need the processor's declaration because the editor holds a reference to it
 // (so the GUI can read/write the processor's state later).
 #include "PluginProcessor.h"
+#include "KnobLookAndFeel.h"   // our filmstrip-knob look
 
 // We inherit from juce::AudioProcessorEditor — JUCE's base class for a plugin GUI.
 // That base class is itself a juce::Component (JUCE's "anything drawable" type),
@@ -47,6 +48,11 @@ private:
     // paint(). juce::Image is JUCE's in-memory picture type. We keep it as a member
     // so we load it a single time (in the constructor) rather than every repaint.
     juce::Image backgroundImage;
+
+    // Our custom filmstrip look. Declared BEFORE the sliders so it is destroyed AFTER
+    // them (members die in reverse order) — the slider must never reference a look that
+    // is already gone.
+    KnobLookAndFeel knobLookAndFeel;
 
     // The on-screen knob for the Drive parameter. juce::Slider is JUCE's component
     // for a knob/fader. This just creates the object; we make it visible (4b),

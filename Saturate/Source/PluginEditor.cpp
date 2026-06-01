@@ -29,6 +29,9 @@ SaturateAudioProcessorEditor::SaturateAudioProcessorEditor (SaturateAudioProcess
     // Register the knob as a child of this window and make it show on screen.
     addAndMakeVisible (driveSlider);
 
+    // Tell the Drive knob to draw itself with our filmstrip look instead of the default.
+    driveSlider.setLookAndFeel (&knobLookAndFeel);
+
     // Make it a ROUND knob you turn by dragging up/down or left/right
     // (instead of JUCE's default straight horizontal fader).
     driveSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
@@ -46,6 +49,9 @@ SaturateAudioProcessorEditor::SaturateAudioProcessorEditor (SaturateAudioProcess
 // Destructor. Nothing to clean up manually.
 SaturateAudioProcessorEditor::~SaturateAudioProcessorEditor()
 {
+    // CRITICAL: detach the custom look before this editor (and its knobLookAndFeel
+    // member) are destroyed, so the slider isn't left pointing at freed memory.
+    driveSlider.setLookAndFeel (nullptr);
 }
 
 //==============================================================================

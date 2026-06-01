@@ -89,6 +89,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/KnobLookAndFeel.cpp     # the filmstrip-knob custom look
 )
 
 # Compile-time switches passed to JUCE. These turn OFF things we don't want.
