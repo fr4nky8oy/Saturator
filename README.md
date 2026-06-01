@@ -1,60 +1,71 @@
 # Saturate
 
-A from-scratch audio **saturator / drive** plugin, built in C++ with the
-[JUCE](https://juce.com) framework and compiled to **VST3**, **Audio Unit (AU)**,
-and **Standalone** formats.
+Saturate is an audio **saturator / drive** plugin built in C++ with the
+[JUCE](https://juce.com) framework, with a custom hardware-style interface.
+It compiles to **VST3**, **Audio Unit (AU)**, and **Standalone** on macOS.
 
-Development is structured as a series of reviewable increments. Every change
-flows through an issue, a feature branch, a pull request, and a green CI build,
-and is reviewed before it reaches a protected `main`.
-
----
-
-## Status
-
-| Phase | What | State |
-|-------|------|-------|
-| 0 | Green plugin skeleton — passthrough audio, empty window, builds in all 3 formats | ✅ done |
-| 1 | Git workflow + CI build gate + protected `main` | ✅ done |
-| 2 | Saturator DSP — one PR per increment | 🔨 in progress |
-| 2.5 | `new-plugin.sh` scaffold generator | ⬜ |
-| 4 | Unsigned `.dmg` / `.pkg` installer | ⬜ |
-| 5a | Serial-number licensing (JUCE `juce_product_unlocking`) | ⬜ |
-
-The plugin currently provides a **Drive** control (the saturation described
-below) with a rotary knob in the editor. Further parameters and DSP land per the
-roadmap above.
+<p align="center">
+  <img src="docs/screenshot.png" alt="Saturate" width="420">
+</p>
 
 ---
 
-## Signal processing
+## Interface
 
-The Drive stage is a **waveshaping saturator**. Each sample is shaped by the
-hyperbolic tangent function:
+The entire interface — faceplate, knobs, and Link button — was 3D-modelled and
+rendered in **Blender**, driven programmatically from **Claude Code** through a
+**Model Context Protocol (MCP)** bridge that lets the assistant control Blender
+directly (modelling, materials, lighting, and rendering). Each knob is a 64-frame
+filmstrip **rendered in place**, so its lighting and perspective match its position
+on the board, and the knob bodies are baked into the faceplate for true contact
+shadows and reflections. The live numeric readouts use a retro terminal font (VT323).
+
+---
+
+## Controls
+
+### Drive
+A waveshaping saturator. Each sample is shaped by the hyperbolic tangent function:
 
 ```
 output = tanh(drive × input)
 ```
 
-`tanh` is a smooth, S-shaped soft-clipping curve: near-linear for low-level
-signals (clean), and progressively flattening toward ±1 as level rises, so peaks
-are rounded rather than hard-clipped. **Drive** scales the signal into the curve —
-higher Drive pushes it onto the flatter shoulders, generating more harmonics and
-more saturation. Drive is parameter-smoothed (50 ms, linear) to avoid zipper
-noise.
+`tanh` is a smooth, S-shaped soft-clipping curve: near-linear for low-level signals
+(clean) and progressively flattening toward ±1 as level rises, so peaks are rounded
+rather than hard-clipped. Higher Drive pushes the signal onto the flatter shoulders,
+generating more harmonics and more saturation. Displayed as **0.00–1.00**;
+parameter-smoothed (50 ms, linear) to avoid zipper noise.
 
-After the waveshaper, an **Output** control applies a makeup gain (±24 dB,
-default 0 dB) so the post-saturation level can be matched back to the input.
-It is likewise parameter-smoothed (50 ms, linear).
+### Output
+A makeup-gain trim (**±14 dB**, default 0 dB) applied *after* the waveshaper, so the
+post-saturation level can be matched back to the input. Likewise smoothed (50 ms).
+
+### Link
+A chain-toggle that couples Drive and Output for **level-matched saturation**. When
+engaged, raising Drive automatically lowers Output (and vice versa) along a
+**measured loudness-compensation curve** — a K-weighted loudness profile of the
+saturation stage — so perceived loudness stays roughly constant as you change the
+amount of drive. Engaging Link preserves your current balance (the knobs don't jump),
+and the state is saved with the project and reflected by the lit/unlit button.
+
+---
+
+## Signal chain
+
+```
+input → tanh(drive × input) → × outputGain → output
+                                   ▲
+                  Link ── couples Drive & Output (loudness-matched)
+```
 
 **Analog correspondence.** A symmetric `tanh` is the transfer function of a
 bipolar-transistor differential pair, so this models solid-state soft clipping
 directly. Its symmetry produces odd-order harmonics — similar in character to
-push-pull and transistor saturation, and to the static transfer curve of tape.
-It does **not** model single-ended valve warmth (even-order harmonics, which
-require an asymmetric curve), tape hysteresis or frequency-dependent behaviour,
-and it does not yet oversample to suppress aliasing. These are deliberate future
-refinements.
+push-pull and transistor saturation, and to the static transfer curve of tape. It
+does **not** model single-ended valve warmth (even-order harmonics, which require an
+asymmetric curve), tape hysteresis, or frequency-dependent behaviour, and it does
+not yet oversample to suppress aliasing.
 
 ---
 
@@ -92,32 +103,31 @@ On a successful build the plugin is copied into your user plugin folders
 ```
 .
 ├── Saturate/
-│   ├── CMakeLists.txt         # build recipe (juce_add_plugin + module links)
+│   ├── CMakeLists.txt              # build recipe (juce_add_plugin + binary data)
+│   ├── Resources/                  # embedded UI assets (ship inside the binary)
+│   │   ├── background.png           #   faceplate, knob bodies + shadows baked in
+│   │   ├── knob_L.png / knob_R.png  #   per-knob filmstrips (64 frames each)
+│   │   ├── button_on.png / button_off.png  # Link toggle states
+│   │   └── VT323-Regular.ttf        #   font for the live readouts
 │   └── Source/
-│       ├── PluginProcessor.{h,cpp}   # the audio processor (DSP lives here)
-│       └── PluginEditor.{h,cpp}      # the UI window
-├── .github/workflows/ci.yml   # CI build gate every PR must pass
+│       ├── PluginProcessor.{h,cpp} # DSP, parameters, and Link coupling
+│       ├── PluginEditor.{h,cpp}    # the custom UI window
+│       └── KnobLookAndFeel.{h,cpp} # filmstrip-knob renderer
+├── .github/workflows/ci.yml        # CI build gate every PR must pass
 ├── .gitignore
 └── README.md
 ```
 
-The source is thoroughly commented, documenting the rationale behind each
-component inline.
+The source is thoroughly commented, documenting the rationale behind each component
+inline.
 
 ---
 
-## Engineering workflow
+## Roadmap
 
-`main` is protected. Nothing is committed straight to it. Each unit of work is:
-
-1. an **issue** (tracked on the board; milestones map to the phases above),
-2. a short-lived **feature branch**,
-3. a **pull request**,
-4. a **green CI build** (configures + compiles the plugin on a clean macOS runner),
-5. a **review**, then **merge**.
-
-Branch protection, required status checks, and mandatory PR review are enforced
-on `main`.
+- Oversampling to suppress aliasing at high Drive
+- Unsigned macOS installer (`.dmg` / `.pkg`)
+- Serial-number licensing
 
 ---
 
@@ -128,3 +138,13 @@ on `main`.
 - **Build:** CMake + Ninja
 - **Audio formats:** VST3, AU, Standalone
 - **CI:** GitHub Actions (macOS runner)
+- **UI assets:** Blender (3D-modelled + rendered)
+- **Tooling:** Claude Code, driving Blender via a Model Context Protocol (MCP) bridge
+
+---
+
+## Engineering workflow
+
+`main` is protected. Each change flows through a short-lived feature branch, a pull
+request, and a green CI build (configures + compiles the plugin in all formats on a
+clean macOS runner) before it is merged.
