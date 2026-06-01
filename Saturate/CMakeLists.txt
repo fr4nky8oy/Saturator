@@ -71,6 +71,17 @@ juce_add_plugin(${PROJECT_NAME}
     AU_COPY_DIR "$ENV{HOME}/Library/Audio/Plug-Ins/Components"
 )
 
+# Bundle our UI assets into a compiled library JUCE calls "binary data". At build
+# time JUCE reads each file's raw bytes and generates C++ source (a big byte array)
+# that gets compiled in — so the images and font ship INSIDE the .vst3/.component,
+# with nothing to load from disk at runtime. We reach them later as BinaryData::...
+# (This is the CMake equivalent of Projucer's "Binary Resource" tick.)
+juce_add_binary_data(SaturateData
+    SOURCES
+        Resources/background.png        # the hero faceplate (2000x2000)
+        Resources/knob_filmstrip.png    # 48-frame knob rotation, reused for both knobs
+        Resources/VT323-Regular.ttf)    # retro font for the live number readouts
+
 # List the .cpp files that make up our plugin. CMake compiles these into the target.
 # Headers (.h) don't go here — they're pulled in via #include. Right now it's just
 # the two skeleton files we're about to write next.
@@ -103,6 +114,7 @@ target_compile_definitions(${PROJECT_NAME}
 # (e.g. juce_product_unlocking in Phase 5a for licensing).
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
+        SaturateData                   # our embedded assets (background, knob filmstrip, font)
         juce::juce_audio_basics        # buffers, sample maths
         juce::juce_audio_plugin_client # the VST3/AU/Standalone wrapper glue
         juce::juce_audio_processors    # AudioProcessor base class

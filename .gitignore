@@ -35,11 +35,13 @@ build/
 #                                           frontmatter + session IDs in it)
 #   BlenderUI.md                         -> internal plan for the Blender-rendered UI
 #   memory.md                            -> session handoff / resume notes
+#   UI concepts.md                       -> internal notes on UI workflow + coords
 # The committed repo gets a clean README.md instead.
 /plan.md
 /project_franky_doesit_template.md
 /BlenderUI.md
 /memory.md
+/UI concepts.md
 
 # ---------------------------------------------------------------------------
 # 3. macOS filesystem junk
@@ -50,6 +52,18 @@ build/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# ---------------------------------------------------------------------------
+# 3b. Local art scratch  (Blender working files, source background, etc.)
+# ---------------------------------------------------------------------------
+# The shipping plugin only needs the EXPORTED assets in Saturate/Resources/.
+# These are the editable art sources / scratch — kept local, not in the repo.
+Saturate/Pictures/
+
+# Blender working files (the editable hero scene + its .blend1 autosave backups).
+# The plugin ships the rendered PNGs, not the scene, so these stay local.
+*.blend
+*.blend1
 
 # ---------------------------------------------------------------------------
 # 4. Editor / IDE scratch
