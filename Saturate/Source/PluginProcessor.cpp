@@ -26,12 +26,18 @@ SaturateAudioProcessor::SaturateAudioProcessor()
       //   createParameterLayout() -> the list we built in Step 1
       apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    // Nothing else to set up here yet.
+    // Listen for changes to these three so we can mirror Drive<->Output when Link is on.
+    apvts.addParameterListener ("drive",  this);
+    apvts.addParameterListener ("output", this);
+    apvts.addParameterListener ("link",   this);
 }
 
-// Destructor. Empty: we allocated nothing that needs manual cleanup.
+// Destructor. Stop listening for parameter changes before we're destroyed.
 SaturateAudioProcessor::~SaturateAudioProcessor()
 {
+    apvts.removeParameterListener ("drive",  this);
+    apvts.removeParameterListener ("output", this);
+    apvts.removeParameterListener ("link",   this);
 }
 
 //==============================================================================
@@ -56,11 +62,98 @@ juce::AudioProcessorValueTreeState::ParameterLayout
     layout.add (std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { "output", 1 },              // internal ID the code uses: "output"
         "Output",                                        // human-readable label shown in the DAW
-        juce::NormalisableRange<float> (-24.0f, 24.0f),  // range: -24 dB (quieter) to +24 dB (louder)
+        juce::NormalisableRange<float> (-14.0f, 14.0f),  // matches the link compensation range; 0 dB centred
         0.0f));                                          // default: 0 dB = unity = no change
+
+    // Link toggle: when on, Drive and Output mirror each other (handled by listeners).
+    layout.add (std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID { "link", 1 },   // internal ID the code looks it up by
+        "Link",                            // label shown in the DAW
+        false));                           // default: off
 
     // Hand the finished list back to whoever asked for it.
     return layout;
+}
+
+//==============================================================================
+// Measured link compensation. These are the dB to REMOVE from Output at each Drive
+// position (0..1 in 0.1 steps), from the K-weighted loudness of the tanh stage
+// (tools/measure_link_curve.py). Anchored so Drive 0 -> 0 dB; flattens at the top.
+namespace
+{
+    const float kLinkComp[11] = { 0.0f, -8.6f, -11.2f, -12.4f, -13.2f, -13.6f,
+                                  -14.0f, -14.2f, -14.4f, -14.6f, -14.7f };
+
+    // Drive position (0..1) -> compensation dB, by linear interpolation of the table.
+    float dispToComp (float disp)
+    {
+        disp = juce::jlimit (0.0f, 1.0f, disp);
+        const float t = disp * 10.0f;            // table index as a float (0..10)
+        const int   i = juce::jmin (9, (int) t); // lower table index
+        const float f = t - (float) i;           // fraction into the segment
+        return kLinkComp[i] + (kLinkComp[i + 1] - kLinkComp[i]) * f;
+    }
+
+    // Inverse: compensation dB -> Drive position (0..1). The table decreases, so we
+    // find the segment containing db, then interpolate.
+    float compToDisp (float db)
+    {
+        if (db >= kLinkComp[0])  return 0.0f;    // 0 dB or louder -> Drive min
+        if (db <= kLinkComp[10]) return 1.0f;    // beyond the table -> Drive max
+        for (int i = 0; i < 10; ++i)
+            if (db >= kLinkComp[i + 1])          // between table[i] (higher) and table[i+1] (lower)
+            {
+                const float span = kLinkComp[i + 1] - kLinkComp[i];   // negative
+                const float f = (span != 0.0f) ? (db - kLinkComp[i]) / span : 0.0f;
+                return (i + f) / 10.0f;
+            }
+        return 1.0f;
+    }
+}
+
+//==============================================================================
+// Called whenever drive/output/link changes. When Link is on, mirror one knob onto
+// the other along the measured compensation curve (Drive up -> Output down).
+void SaturateAudioProcessor::parameterChanged (const juce::String& parameterID, float newValue)
+{
+    // Ignore the change we cause ourselves while mirroring (stops the endless ping-pong).
+    if (linkUpdating.load())
+        return;
+
+    // Nothing to do unless Link is engaged.
+    const bool link = apvts.getRawParameterValue ("link")->load() > 0.5f;
+    if (! link)
+        return;
+
+    // Link compensation from the measured curve (kLinkComp table above).
+    // driveNorm = (drive-1)/24 is the knob's 0..1 position.
+    auto driveToOutputDb = [](float drive){ return dispToComp ((drive - 1.0f) / 24.0f); };
+    auto outputDbToDrive = [](float db)   { return 1.0f + compToDisp (db) * 24.0f; };
+
+    // Helper: set a parameter by its REAL value (converted to 0..1, which the host wants).
+    auto setParam = [this] (const juce::String& id, float value)
+    {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (p->convertTo0to1 (value));
+    };
+
+    linkUpdating.store (true);
+
+    if (parameterID == "link")
+    {
+        // Just engaged: remember the user's offset from the curve so the pots DON'T jump.
+        const float drive  = apvts.getRawParameterValue ("drive") ->load();
+        const float output = apvts.getRawParameterValue ("output")->load();
+        linkOffset.store (output - driveToOutputDb (drive));
+    }
+    else if (parameterID == "drive")
+        // Drive moved: pull Output along the curve, shifted by the user's offset.
+        setParam ("output", driveToOutputDb (newValue) + linkOffset.load());
+    else if (parameterID == "output")
+        // Output moved: mirror back the other way (inverse curve, minus the offset).
+        setParam ("drive", outputDbToDrive (newValue - linkOffset.load()));
+
+    linkUpdating.store (false);
 }
 
 //==============================================================================
