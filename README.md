@@ -41,7 +41,11 @@ signals (clean), and progressively flattening toward ±1 as level rises, so peak
 are rounded rather than hard-clipped. **Drive** scales the signal into the curve —
 higher Drive pushes it onto the flatter shoulders, generating more harmonics and
 more saturation. Drive is parameter-smoothed (50 ms, linear) to avoid zipper
-noise; an output makeup-gain stage is planned.
+noise.
+
+After the waveshaper, an **Output** control applies a makeup gain (±24 dB,
+default 0 dB) so the post-saturation level can be matched back to the input.
+It is likewise parameter-smoothed (50 ms, linear).
 
 **Analog correspondence.** A symmetric `tanh` is the transfer function of a
 bipolar-transistor differential pair, so this models solid-state soft clipping
