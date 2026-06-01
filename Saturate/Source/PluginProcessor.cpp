@@ -50,6 +50,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout
         juce::NormalisableRange<float> (1.0f, 25.0f),  // range: 1.0 up to 25.0
         1.0f));                                        // default: 1.0 (no effect)
 
+    // Create the Output parameter (a post-saturation makeup gain) and add it to the list.
+    // It's measured in decibels (dB) — how engineers think about level. 0 dB means
+    // "leave the level unchanged"; positive = louder, negative = quieter.
+    layout.add (std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID { "output", 1 },              // internal ID the code uses: "output"
+        "Output",                                        // human-readable label shown in the DAW
+        juce::NormalisableRange<float> (-24.0f, 24.0f),  // range: -24 dB (quieter) to +24 dB (louder)
+        0.0f));                                          // default: 0 dB = unity = no change
+
     // Hand the finished list back to whoever asked for it.
     return layout;
 }
@@ -70,6 +79,17 @@ void SaturateAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // Start the smoother sitting exactly on the current knob value, so audio doesn't
     // glide up from zero when playback begins. (setCurrentAndTargetValue = snap, no ramp.)
     driveSmoothed.setCurrentAndTargetValue (apvts.getRawParameterValue ("drive")->load());
+
+    // Give the Output smoother the same 50 ms glide. It needs sampleRate to turn
+    // "50 ms" into a per-sample step count, exactly like the Drive smoother above.
+    outputSmoothed.reset (sampleRate, 0.05);
+
+    // Snap the smoother to the current Output value so audio doesn't glide up from
+    // silence when playback starts. The parameter is stored in dB, but the smoother
+    // (and the audio multiply in piece 4) work in LINEAR gain — so we convert first
+    // with Decibels::decibelsToGain (e.g. 0 dB -> 1.0, +6 dB -> ~2.0, -6 dB -> ~0.5).
+    outputSmoothed.setCurrentAndTargetValue (
+        juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("output")->load()));
 }
 
 // Called when playback stops. Nothing to release yet.
@@ -111,6 +131,13 @@ void SaturateAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // from wherever it currently is toward this target over the 50 ms ramp.
     driveSmoothed.setTargetValue (drive);
 
+    // Read the current Output value (in dB), convert it to a linear gain, and aim the
+    // smoother at it — same once-per-block pattern as Drive just above. The smoother
+    // will then GLIDE toward this gain over the 50 ms ramp instead of jumping.
+    const float outputGain = juce::Decibels::decibelsToGain (
+        apvts.getRawParameterValue ("output")->load());
+    outputSmoothed.setTargetValue (outputGain);
+
     // We now touch each sample ourselves (the tanh curve, next step, can't use the
     // applyGain helper). Grab the block's dimensions:
     const int numSamples  = buffer.getNumSamples();
@@ -122,14 +149,16 @@ void SaturateAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (int sample = 0; sample < numSamples; ++sample)
     {
         const float d = driveSmoothed.getNextValue();
+        const float g = outputSmoothed.getNextValue();   // smoothed Output gain, one step per sample
 
         // Inner loop: shape each channel's sample, in place. "d * channelData[sample]"
         // is Drive pushing the signal INTO the curve; std::tanh then rounds the peaks.
-        // This is the tanh(drive × input) saturation from the README.
+        // This is the tanh(drive × input) saturation from the README. We THEN multiply
+        // by g (the Output makeup gain) to set the final level after the distortion.
         for (int channel = 0; channel < numChannels; ++channel)
         {
             float* channelData = buffer.getWritePointer (channel);
-            channelData[sample] = std::tanh (d * channelData[sample]);
+            channelData[sample] = std::tanh (d * channelData[sample]) * g;
         }
     }
 }

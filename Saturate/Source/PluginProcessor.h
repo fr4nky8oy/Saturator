@@ -112,6 +112,12 @@ private:
     // in prepareToPlay (5b-2) and use it in processBlock (5b-3).
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> driveSmoothed;
 
+    // The same idea as driveSmoothed, but for the Output gain. Moving the Output knob
+    // jumps to a new value; this glides there over a short ramp so we don't hear a click.
+    // <Linear> = it steps in a straight line from old value to new. Ramp length is set
+    // in prepareToPlay (piece 3) and consumed in processBlock (piece 4).
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> outputSmoothed;
+
     //==============================================================================
     // This macro adds standard JUCE safety boilerplate to the class:
     //  - prevents accidental copying of the processor (which would be a bug), and
