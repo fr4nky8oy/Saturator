@@ -65,6 +65,13 @@ Saturate/Pictures/
 *.blend
 *.blend1
 
+# Local Blender tooling (render/extract scripts + instructions for the PC).
+# Not part of the shippable plugin — stays local.
+/Blender/
+
+# Local DAW test project used to audition the plugin — not part of the product.
+/TestAbleton/
+
 # ---------------------------------------------------------------------------
 # 4. Editor / IDE scratch
 # ---------------------------------------------------------------------------

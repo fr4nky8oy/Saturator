@@ -78,8 +78,9 @@ juce_add_plugin(${PROJECT_NAME}
 # (This is the CMake equivalent of Projucer's "Binary Resource" tick.)
 juce_add_binary_data(SaturateData
     SOURCES
-        Resources/background.png        # the hero faceplate (2000x2000)
-        Resources/knob_filmstrip.png    # 48-frame knob rotation, reused for both knobs
+        Resources/background.png        # the hero faceplate (1800x1800, knobs baked for depth)
+        Resources/knob_L.png            # Drive knob filmstrip  (64 frames, rendered in place)
+        Resources/knob_R.png            # Output knob filmstrip (64 frames, rendered in place)
         Resources/VT323-Regular.ttf)    # retro font for the live number readouts
 
 # List the .cpp files that make up our plugin. CMake compiles these into the target.
@@ -89,6 +90,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/KnobLookAndFeel.cpp     # the filmstrip-knob custom look
 )
 
 # Compile-time switches passed to JUCE. These turn OFF things we don't want.

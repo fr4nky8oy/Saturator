@@ -12,11 +12,13 @@
 // We need the processor's declaration because the editor holds a reference to it
 // (so the GUI can read/write the processor's state later).
 #include "PluginProcessor.h"
+#include "KnobLookAndFeel.h"   // our filmstrip-knob look
 
 // We inherit from juce::AudioProcessorEditor — JUCE's base class for a plugin GUI.
 // That base class is itself a juce::Component (JUCE's "anything drawable" type),
 // which is why we can override paint() and resized() below.
-class SaturateAudioProcessorEditor : public juce::AudioProcessorEditor
+class SaturateAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                     private juce::Timer
 {
 public:
     //==============================================================================
@@ -35,6 +37,9 @@ public:
     // at startup). This is where we'll position child components (the knobs) later.
     void resized() override;
 
+    // Fires ~30x/sec; we use it to refresh the live value numbers in their boxes.
+    void timerCallback() override;
+
 private:
     //==============================================================================
     // A reference back to the processor this editor belongs to. We store it so the
@@ -48,6 +53,14 @@ private:
     // so we load it a single time (in the constructor) rather than every repaint.
     juce::Image backgroundImage;
 
+    // The VT323 retro font (loaded from BinaryData) used to draw the live value numbers.
+    juce::Typeface::Ptr numberTypeface;
+
+    // One custom look PER knob, each loaded with its own strip (knob_L for Drive,
+    // knob_R for Output). Declared BEFORE the sliders so they're destroyed AFTER them.
+    KnobLookAndFeel driveLook;
+    KnobLookAndFeel outputLook;
+
     // The on-screen knob for the Drive parameter. juce::Slider is JUCE's component
     // for a knob/fader. This just creates the object; we make it visible (4b),
     // position it (4c), and connect it to the parameter (4d) next.
@@ -58,6 +71,14 @@ private:
     // the window closes. Like apvts, it has no empty form — we build it in the
     // constructor (next part), which clears the "must initialize" error.
     juce::AudioProcessorValueTreeState::SliderAttachment driveAttachment;
+
+    // The on-screen knob for the Output parameter — twin of driveSlider, same
+    // filmstrip look. Created here; configured, placed and attached like Drive.
+    juce::Slider outputSlider;
+
+    // Keeps outputSlider and the "output" parameter in sync both ways, automatically.
+    // Declared after outputSlider so it is destroyed first (reverse member order).
+    juce::AudioProcessorValueTreeState::SliderAttachment outputAttachment;
 
     // Same safety macro as the processor: no accidental copies, plus a debug-build
     // leak detector.
