@@ -81,6 +81,8 @@ juce_add_binary_data(SaturateData
         Resources/background.png        # the hero faceplate (1800x1800, knobs baked for depth)
         Resources/knob_L.png            # Drive knob filmstrip  (64 frames, rendered in place)
         Resources/knob_R.png            # Output knob filmstrip (64 frames, rendered in place)
+        Resources/button_on.png         # Link toggle, lit (amber) state
+        Resources/button_off.png        # Link toggle, unlit state
         Resources/VT323-Regular.ttf)    # retro font for the live number readouts
 
 # List the .cpp files that make up our plugin. CMake compiles these into the target.

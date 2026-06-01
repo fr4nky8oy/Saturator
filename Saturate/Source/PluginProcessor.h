@@ -20,7 +20,8 @@
 // that defines everything a plugin host (a DAW) expects a plugin to provide.
 // By inheriting, we promise to implement that set of functions (below); the host
 // then calls them at the right times (e.g. processBlock on the audio thread).
-class SaturateAudioProcessor : public juce::AudioProcessor
+class SaturateAudioProcessor : public juce::AudioProcessor,
+                               private juce::AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
@@ -102,6 +103,20 @@ private:
     // It's "static" because it needs to run while the object is still being built,
     // before there's a finished object to belong to.
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    //==============================================================================
+    // --- Link coupling ---
+
+    // Called by JUCE whenever drive/output/link changes (we registered for these in the
+    // constructor). When Link is on, this mirrors one knob onto the other.
+    void parameterChanged (const juce::String& parameterID, float newValue) override;
+
+    // Guard so the mirror doesn't ping-pong: while we're setting one knob from the other,
+    // we ignore the callback that our own change triggers.
+    std::atomic<bool>  linkUpdating { false };
+    // The user's offset from the compensation curve, captured when Link engages, so
+    // turning Link on keeps the current pot positions instead of snapping them.
+    std::atomic<float> linkOffset   { 0.0f };
 
     //==============================================================================
     // --- Smoothing ---
