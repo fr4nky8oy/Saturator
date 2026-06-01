@@ -43,6 +43,11 @@ private:
     // real processor — never a copy.
     SaturateAudioProcessor& processorRef;
 
+    // The faceplate artwork, loaded once from the embedded BinaryData and drawn in
+    // paint(). juce::Image is JUCE's in-memory picture type. We keep it as a member
+    // so we load it a single time (in the constructor) rather than every repaint.
+    juce::Image backgroundImage;
+
     // The on-screen knob for the Drive parameter. juce::Slider is JUCE's component
     // for a knob/fader. This just creates the object; we make it visible (4b),
     // position it (4c), and connect it to the parameter (4d) next.
