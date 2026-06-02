@@ -307,15 +307,30 @@ void SaturateAudioProcessor::changeProgramName (int index, const juce::String& n
 }
 
 //==============================================================================
-// --- State save/load: empty for now (no parameters). APVTS fills these later. ---
+// --- State save/load: SAVE serializes the APVTS tree to XML; LOAD restores it. ---
 void SaturateAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    juce::ignoreUnused (destData);
+    // Grab the whole parameter tree (Drive, Output, Link) as a copy...
+    auto state = apvts.copyState();
+    // ...turn it into XML text...
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    // ...and write that XML into the block the DAW gave us.
+    copyXmlToBinary (*xml, destData);
 }
 
 void SaturateAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    juce::ignoreUnused (data, sizeInBytes);
+    // The DAW hands back the exact bytes we saved in getStateInformation.
+    // getXmlFromBinary is the inverse of copyXmlToBinary: bytes -> XML.
+    std::unique_ptr<juce::XmlElement> xml (getXmlFromBinary (data, sizeInBytes));
+
+    // Two guards: (1) did we actually get XML back, and
+    // (2) is it OUR tree? Our apvts tree is named "PARAMETERS" (see the constructor),
+    // so the XML's root tag must match — otherwise it's not ours, ignore it.
+    if (xml != nullptr && xml->hasTagName (apvts.state.getType()))
+        // Rebuild the tree from the XML and swap it in. This moves every
+        // parameter to its saved value and notifies the host + editor.
+        apvts.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
 //==============================================================================
